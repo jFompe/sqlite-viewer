@@ -10,6 +10,7 @@
             background-color: hsl(0, 0%, 12%);
             color: #d4d4d4;
             min-height: 100vh;
+            position: relative;
         }
 
         #drop-zone {
@@ -23,6 +24,7 @@
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: 300px;
         }
 
         #drop-zone.dragover {
@@ -97,6 +99,75 @@
             pointer-events: none;
             z-index: 0;
         }
+
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #1e1e1ecc;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .spinner {
+            border: 4px solid #3a7fb6;
+            border-top: 4px solid transparent;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #file-meta {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+        }
+
+        #error-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #5a1a1a;
+            color: #ff9999;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            max-width: 80%;
+        }
+
+        #reset-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #3a7fb6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #reset-button:hover {
+            background-color: #264f78;
+        }
+
+        .error-close {
+            float: right;
+            cursor: pointer;
+            margin-left: 15px;
+        }
     </style>
 </head>
 <body>
@@ -106,8 +177,23 @@
         <button id="select-button">Select file</button>
     </div>
 
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="error-message">
+        <span id="error-text"></span>
+        <span class="error-close" onclick="dismissError()">✕</span>
+    </div>
+
+    <button id="reset-button" class="hidden">Analyze Another File</button>
     <input type="file" id="file-input">
-    <div id="hex-container" class="hidden"></div>
+
+    <div id="content-area" class="hidden">
+        <div id="file-meta"></div>
+        <div id="hex-container"></div>
+    </div>
+
     <div id="tooltip"></div>
 
     <script>
@@ -137,11 +223,16 @@
             { start: 96, end: 99, name: "SQLite Version", description: "SQLite version number" },
         ];
 
-        // Drag and drop handlers
-        const dropZone = document.getElementById('drop-zone');
+        // UI Elements
         const fileInput = document.getElementById('file-input');
         const selectButton = document.getElementById('select-button');
         const hexContainer = document.getElementById('hex-container');
+        const dropZone = document.getElementById('drop-zone');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const resetButton = document.getElementById('reset-button');
+        const contentArea = document.getElementById('content-area');
+        const fileMeta = document.getElementById('file-meta');
+        const errorMessage = document.getElementById('error-message');
 
         // Handle file selection
         function handleFile(file) {
@@ -154,6 +245,89 @@
             };
             reader.readAsArrayBuffer(file);
         }
+
+        // Show loading state
+        function showLoading() {
+            loadingOverlay.style.display = 'flex';
+            dropZone.style.pointerEvents = 'none';
+        }
+
+        // Hide loading state
+        function hideLoading() {
+            loadingOverlay.style.display = 'none';
+            dropZone.style.pointerEvents = 'auto';
+        }
+
+        // Show error message
+        function showError(message) {
+            document.getElementById('error-text').textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(dismissError, 5000);
+        }
+
+        // Dismiss error message
+        function dismissError() {
+            errorMessage.style.display = 'none';
+        }
+
+        // Reset to initial state
+        function resetUI() {
+            contentArea.classList.add('hidden');
+            resetButton.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            fileMeta.textContent = '';
+            document.getElementById('hex-container').innerHTML = '';
+        }
+
+        // Validate SQLite file
+        function validateSQLite(bytes) {
+            const headerString = Array.from(bytes.slice(0, 16))
+                .map(b => String.fromCharCode(b))
+                .join('');
+            
+            return headerString === 'SQLite format 3\0';
+        }
+
+        // Handle file selection
+        async function handleFile(file) {
+            try {
+                showLoading();
+                
+                // Read file
+                const arrayBuffer = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+
+                const bytes = new Uint8Array(arrayBuffer);
+                
+                // Validate file
+                if (!validateSQLite(bytes)) {
+                    throw new Error('Not a valid SQLite database file');
+                }
+
+                // Update UI
+                hideLoading();
+                dropZone.classList.add('hidden');
+                contentArea.classList.remove('hidden');
+                resetButton.classList.remove('hidden');
+                
+                // Show metadata
+                fileMeta.textContent = `File: ${file.name} (${(file.size/1024).toFixed(2)} KB)`;
+                
+                // Display hex content
+                displayHex(bytes);
+            } catch (error) {
+                hideLoading();
+                showError(error.message);
+                resetUI();
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('reset-button').addEventListener('click', resetUI);
 
         // Drag and drop events
         dropZone.addEventListener('dragover', (e) => {
