@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SQLite File Analyzer</title>
+    <style>
+        body {
+            font-family: monospace;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        #hex-container {
+            display: grid;
+            grid-template-columns: repeat(17, 1fr);
+            gap: 2px;
+            max-width: 800px;
+        }
+
+        .hex-byte {
+            padding: 2px;
+            cursor: help;
+            border-radius: 3px;
+        }
+
+        .hex-byte:hover {
+            background-color: #264f78;
+        }
+
+        #tooltip {
+            position: fixed;
+            background-color: #333;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+            pointer-events: none;
+        }
+
+        #file-input {
+            margin-bottom: 20px;
+        }
+
+        .highlight-group {
+            background-color: #264f78 !important;
+            border: 1px solid #3a7fb6;
+            position: relative;
+            z-index: 1;
+        }
+
+        .group-highlight {
+            position: absolute;
+            background-color: #264f7855;
+            pointer-events: none;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="file-input">
+    <div id="hex-container"></div>
+    <div id="tooltip"></div>
+
+    <script>
+        const headerStructure = [
+            { start: 0,  end: 15, name: "Header String", description: "The header string: 'SQLite format 3\\000'" },
+            { start: 16, end: 17, name: "Page Size", description: "Database page size in bytes" },
+            { start: 18, end: 19, name: "File Format Write Version", description: "File format write version" },
+            { start: 20, end: 21, name: "File Format Read Version", description: "File format read version" },
+            { start: 22, end: 23, name: "Reserved Space", description: "Bytes of reserved space at end of each page" },
+            { start: 24, end: 27, name: "Maximum Embedded Payload Fraction", description: "Maximum embedded payload fraction" },
+            { start: 28, end: 31, name: "Minimum Embedded Payload Fraction", description: "Minimum embedded payload fraction" },
+            { start: 32, end: 35, name: "Leaf Payload Fraction", description: "Leaf payload fraction" },
+            { start: 36, end: 39, name: "File Change Counter", description: "File change counter" },
+            { start: 40, end: 43, name: "Database Size in Pages", description: "Size of the database file in pages" },
+            { start: 44, end: 47, name: "First Freelist Page", description: "Page number of first freelist trunk page" },
+            { start: 48, end: 51, name: "Freelist Page Count", description: "Number of freelist pages" },
+            { start: 52, end: 55, name: "Schema Cookie", description: "Schema cookie" },
+            { start: 56, end: 59, name: "Schema Format Number", description: "Schema format number" },
+            { start: 60, end: 63, name: "Default Page Cache Size", description: "Default page cache size" },
+            { start: 64, end: 67, name: "Largest Root B-Tree Page", description: "Page number of largest root b-tree page" },
+            { start: 68, end: 71, name: "Text Encoding", description: "Database text encoding" },
+            { start: 72, end: 75, name: "User Version", description: "User version" },
+            { start: 76, end: 79, name: "Incremental Vacuum Mode", description: "Incremental vacuum mode" },
+            { start: 80, end: 83, name: "Application ID", description: "Application ID" },
+            { start: 84, end: 91, name: "Reserved", description: "Reserved for expansion" },
+            { start: 92, end: 95, name: "Version Valid For", description: "The version-valid-for number" },
+            { start: 96, end: 99, name: "SQLite Version", description: "SQLite version number" },
+        ];
+
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                const bytes = new Uint8Array(arrayBuffer);
+                displayHex(bytes);
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+
+        function displayHex(bytes) {
+            const container = document.getElementById('hex-container');
+            container.innerHTML = '';
+
+            for (let i = 0; i < 100; i++) {
+                const byteElement = document.createElement('div');
+                byteElement.className = 'hex-byte';
+                byteElement.textContent = bytes[i].toString(16).padStart(2, '0');
+                byteElement.dataset.offset = i;
+                
+                // Add group highlighting on mouseover
+                byteElement.addEventListener('mouseover', function(e) {
+                    const offset = parseInt(e.target.dataset.offset);
+                    const field = headerStructure.find(f => offset >= f.start && offset <= f.end);
+                    
+                    if (field) {
+                        // Highlight all bytes in the group
+                        const groupBytes = container.querySelectorAll(`[data-offset]`);
+                        groupBytes.forEach(el => {
+                            const elOffset = parseInt(el.dataset.offset);
+                            if (elOffset >= field.start && elOffset <= field.end) {
+                                el.classList.add('highlight-group');
+                            }
+                        });
+
+                        // Update tooltip
+                        const tooltip = document.getElementById('tooltip');
+                        tooltip.innerHTML = `<strong>${field.name}</strong><br>
+                            Bytes: ${field.start}-${field.end}<br>
+                            ${field.description}`;
+                        tooltip.style.display = 'block';
+                        
+                        // Position tooltip above the group
+                        const firstElement = container.querySelector(`[data-offset="${field.start}"]`);
+                        const rect = firstElement.getBoundingClientRect();
+                        tooltip.style.left = `${rect.left}px`;
+                        tooltip.style.top = `${rect.top - 40}px`;
+                    }
+                });
+
+                byteElement.addEventListener('mouseout', function() {
+                    // Remove all highlights
+                    container.querySelectorAll('.highlight-group').forEach(el => {
+                        el.classList.remove('highlight-group');
+                    });
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+                container.appendChild(byteElement);
+            }
+        }
+    </script>
+</body>
+</html>
