@@ -7,8 +7,50 @@
         body {
             font-family: monospace;
             margin: 20px;
-            background-color: #1e1e1e;
+            background-color: hsl(0, 0%, 12%);
             color: #d4d4d4;
+            min-height: 100vh;
+        }
+
+        #drop-zone {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px dashed #555;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #drop-zone.dragover {
+            border-color: #3a7fb6;
+            background-color: #ffffff08;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        #select-button {
+            background-color: #3a7fb6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-family: monospace;
+        }
+
+        #select-button:hover {
+            background-color: #264f78;
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         #hex-container {
@@ -58,8 +100,14 @@
     </style>
 </head>
 <body>
+    <div id="drop-zone">
+        <div>Drag SQLite file here</div>
+        <div>or</div>
+        <button id="select-button">Select file</button>
+    </div>
+
     <input type="file" id="file-input">
-    <div id="hex-container"></div>
+    <div id="hex-container" class="hidden"></div>
     <div id="tooltip"></div>
 
     <script>
@@ -89,17 +137,47 @@
             { start: 96, end: 99, name: "SQLite Version", description: "SQLite version number" },
         ];
 
-        document.getElementById('file-input').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
+        // Drag and drop handlers
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const selectButton = document.getElementById('select-button');
+        const hexContainer = document.getElementById('hex-container');
 
+        // Handle file selection
+        function handleFile(file) {
+            const reader = new FileReader();
             reader.onload = function(e) {
-                const arrayBuffer = e.target.result;
-                const bytes = new Uint8Array(arrayBuffer);
+                const bytes = new Uint8Array(e.target.result);
+                hexContainer.classList.remove('hidden');
+                dropZone.classList.add('hidden');
                 displayHex(bytes);
             };
-
             reader.readAsArrayBuffer(file);
+        }
+
+        // Drag and drop events
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        // Button click triggers file input
+        selectButton.addEventListener('click', () => fileInput.click());
+
+        // Original file input handler
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
         });
 
         function displayHex(bytes) {
