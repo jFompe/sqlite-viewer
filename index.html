@@ -113,7 +113,7 @@
             position: fixed;
             background-color: #333;
             color: white;
-            padding: 8px;
+            padding: 12px;
             border-radius: 4px;
             display: none;
             pointer-events: none;
@@ -432,7 +432,8 @@
                         const firstElement = container.querySelector(`[data-offset="${field.start}"]`);
                         const rect = firstElement.getBoundingClientRect();
                         tooltip.style.left = `${rect.left}px`;
-                        tooltip.style.top = `${rect.top - 40}px`;
+                        tooltip.style.top = `${rect.top - 70}px`;
+                        tooltip.style.display = 'block';
                     }
                 });
 
