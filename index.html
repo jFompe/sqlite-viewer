@@ -6,7 +6,7 @@
     <style>
 
         html {
-            overflow: hidden;
+            overflow: auto;
         }
 
         body {
@@ -282,6 +282,26 @@
             { start: 84, end: 91, name: "Reserved", description: "Reserved for expansion" },
             { start: 92, end: 95, name: "Version Valid For", description: "The version-valid-for number" },
             { start: 96, end: 99, name: "SQLite Version", description: "SQLite version number" },
+        ];
+
+        const pageTypes = {
+            0x02: 'Index Interior',
+            0x05: 'Table Interior',
+            0x0a: 'Index Leaf',
+            0x0d: 'Table Leaf'
+        };
+
+        const commonPageHeader = [
+            { start: 0, end: 0, name: "Page Type", description: "Type of B-tree page" },
+            { start: 1, end: 2, name: "First Freeblock", description: "Offset to first freeblock" },
+            { start: 3, end: 4, name: "Cell Count", description: "Number of cells on this page" },
+            { start: 5, end: 6, name: "Cell Content Offset", description: "Offset to cell content area" },
+            { start: 7, end: 7, name: "Fragmented Free Bytes", description: "Number of fragmented free bytes" }
+        ];
+
+        const tableLeafPage = [
+            ...commonPageHeader,
+            { start: 8, end: 11, name: "Rightmost Pointer", description: "Right-most child pointer" }
         ];
 
         // UI Elements
