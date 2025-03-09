@@ -85,9 +85,12 @@
 
         .offset-label {
             color: #3a7fb6;
-            padding-right: 15px;
+            background-color: #2a2a2a;
+            padding: 2px 5px;
             text-align: right;
             user-select: none;
+            border-right: 1px solid #3a7fb6;
+            font-weight: bold;
         }
 
         .hex-byte {
@@ -98,17 +101,10 @@
         }
 
         #hex-container {
-            display: grid;
-            grid-template-columns: repeat(17, 1fr);
-            gap: 2px;
-            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
-
-        /* .hex-byte {
-            padding: 2px;
-            cursor: help;
-            border-radius: 3px;
-        } */
 
         .hex-byte:hover {
             background-color: #264f78;
@@ -423,52 +419,72 @@
             const container = document.getElementById('hex-container');
             container.innerHTML = '';
 
-            for (let i = 0; i < 100; i++) {
-                const byteElement = document.createElement('div');
-                byteElement.className = 'hex-byte';
-                byteElement.textContent = bytes[i].toString(16).padStart(2, '0');
-                byteElement.dataset.offset = i;
+            const bytesPerRow = 16;
+            const totalRows = Math.ceil(100 / bytesPerRow); 
+
+            for (let row = 0; row < totalRows; row++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'hex-row';
                 
-                // Add group highlighting on mouseover
-                byteElement.addEventListener('mouseover', function(e) {
-                    const offset = parseInt(e.target.dataset.offset);
-                    const field = headerStructure.find(f => offset >= f.start && offset <= f.end);
-                    
-                    if (field) {
-                        // Highlight all bytes in the group
-                        const groupBytes = container.querySelectorAll(`[data-offset]`);
-                        groupBytes.forEach(el => {
-                            const elOffset = parseInt(el.dataset.offset);
-                            if (elOffset >= field.start && elOffset <= field.end) {
-                                el.classList.add('highlight-group');
-                            }
-                        });
+                // Add offset label (this is the new critical part)
+                const offset = row * bytesPerRow;
+                const offsetLabel = document.createElement('div');
+                offsetLabel.className = 'offset-label';
+                offsetLabel.textContent = offset.toString(16).padStart(4, '0').toUpperCase();
+                rowDiv.appendChild(offsetLabel);
 
-                        // Update tooltip
-                        const tooltip = document.getElementById('tooltip');
-                        tooltip.innerHTML = `<strong>${field.name}</strong><br>
-                            Bytes: ${field.start}-${field.end}<br>
-                            ${field.description}`;
-                        tooltip.style.display = 'block';
+                // Add bytes for this row
+                for (let col = 0; col < bytesPerRow; col++) {
+                    const byteIndex = offset + col;
+                    if (byteIndex >= bytes.length) break;
+
+                    const byteElement = document.createElement('div');
+                    byteElement.className = 'hex-byte';
+                    byteElement.textContent = bytes[byteIndex].toString(16).padStart(2, '0');
+                    byteElement.dataset.offset = byteIndex;
+                
+                    // Add group highlighting on mouseover
+                    byteElement.addEventListener('mouseover', function(e) {
+                        const offset = parseInt(e.target.dataset.offset);
+                        const field = headerStructure.find(f => offset >= f.start && offset <= f.end);
                         
-                        // Position tooltip above the group
-                        const firstElement = container.querySelector(`[data-offset="${field.start}"]`);
-                        const rect = firstElement.getBoundingClientRect();
-                        tooltip.style.left = `${rect.left}px`;
-                        tooltip.style.top = `${rect.top - 70}px`;
-                        tooltip.style.display = 'block';
-                    }
-                });
+                        if (field) {
+                            // Highlight all bytes in the group
+                            const groupBytes = container.querySelectorAll(`[data-offset]`);
+                            groupBytes.forEach(el => {
+                                const elOffset = parseInt(el.dataset.offset);
+                                if (elOffset >= field.start && elOffset <= field.end) {
+                                    el.classList.add('highlight-group');
+                                }
+                            });
 
-                byteElement.addEventListener('mouseout', function() {
-                    // Remove all highlights
-                    container.querySelectorAll('.highlight-group').forEach(el => {
-                        el.classList.remove('highlight-group');
+                            // Update tooltip
+                            const tooltip = document.getElementById('tooltip');
+                            tooltip.innerHTML = `<strong>${field.name}</strong><br>
+                                Bytes: ${field.start}-${field.end}<br>
+                                ${field.description}`;
+                            tooltip.style.display = 'block';
+                            
+                            // Position tooltip above the group
+                            const firstElement = container.querySelector(`[data-offset="${field.start}"]`);
+                            const rect = firstElement.getBoundingClientRect();
+                            tooltip.style.left = `${rect.left}px`;
+                            tooltip.style.top = `${rect.top - 70}px`;
+                            tooltip.style.display = 'block';
+                        }
                     });
-                    document.getElementById('tooltip').style.display = 'none';
-                });
 
-                container.appendChild(byteElement);
+                    byteElement.addEventListener('mouseout', function() {
+                        // Remove all highlights
+                        container.querySelectorAll('.highlight-group').forEach(el => {
+                            el.classList.remove('highlight-group');
+                        });
+                        document.getElementById('tooltip').style.display = 'none';
+                    });
+
+                    rowDiv.appendChild(byteElement);
+                }
+                container.appendChild(rowDiv);
             }
         }
 
