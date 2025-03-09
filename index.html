@@ -81,6 +81,7 @@
             grid-template-columns: auto repeat(16, 1fr);
             gap: 4px;
             margin-bottom: 4px;
+            height: 20px;
         }
 
         .offset-label {
@@ -438,15 +439,17 @@
         function displayHex(bytes) {
             const container = document.getElementById('hex-container');
             container.innerHTML = '';
+            
+            // Parse page size from header
+            const pageSize = (bytes[16] << 8) | bytes[17];
 
             const bytesPerRow = 16;
-            const totalRows = Math.ceil(100 / bytesPerRow); 
+            const totalRows = Math.ceil(bytes.length / bytesPerRow);
 
             for (let row = 0; row < totalRows; row++) {
                 const rowDiv = document.createElement('div');
                 rowDiv.className = 'hex-row';
                 
-                // Add offset label (this is the new critical part)
                 const offset = row * bytesPerRow;
                 const offsetLabel = document.createElement('div');
                 offsetLabel.className = 'offset-label';
@@ -462,34 +465,56 @@
                     byteElement.className = 'hex-byte';
                     byteElement.textContent = bytes[byteIndex].toString(16).padStart(2, '0');
                     byteElement.dataset.offset = byteIndex;
-                
+                    
                     // Add group highlighting on mouseover
                     byteElement.addEventListener('mouseover', function(e) {
                         const offset = parseInt(e.target.dataset.offset);
-                        const field = headerStructure.find(f => offset >= f.start && offset <= f.end);
-                        
-                        if (field) {
-                            // Highlight all bytes in the group
-                            const groupBytes = container.querySelectorAll(`[data-offset]`);
-                            groupBytes.forEach(el => {
-                                const elOffset = parseInt(el.dataset.offset);
-                                if (elOffset >= field.start && elOffset <= field.end) {
-                                    el.classList.add('highlight-group');
-                                }
-                            });
+                        let field, tooltipText;
+                        let pageStart = 0;
 
+                        if (offset < 100) {
+                            // Header fields
+                            field = headerStructure.find(f => offset >= f.start && offset <= f.end);
+                        } else {
+                            // Page fields
+                            pageStart = Math.floor((offset - 100) / pageSize) * pageSize + 100;
+                            const pageOffset = offset - pageStart;
+                            const pageTypeByte = bytes[pageStart];
+                            const pageType = pageTypes[pageTypeByte] || 'Unknown Page Type';
+
+                            // Get appropriate structure
+                            const structure = pageTypeByte === 0x0d ? tableLeafPage : commonPageHeader;
+                            field = structure.find(f => pageOffset >= f.start && pageOffset <= f.end);
+
+                            if (field) {
+                                tooltipText = `${pageType}<br>
+                                    <strong>${field.name}</strong><br>
+                                    Page Bytes: ${field.start === field.end ? field.start : `${field.start}-${field.end}`}<br>
+                                    ${field.description}`;
+                            }
+                        }
+
+                        if (field) {
                             // Update tooltip
                             const tooltip = document.getElementById('tooltip');
-                            tooltip.innerHTML = `<strong>${field.name}</strong><br>
+                            tooltip.innerHTML = tooltipText || `<strong>${field.name}</strong><br>
                                 Bytes: ${field.start}-${field.end}<br>
                                 ${field.description}`;
                             tooltip.style.display = 'block';
                             
-                            // Position tooltip above the group
-                            const firstElement = container.querySelector(`[data-offset="${field.start}"]`);
+                            // Highlight group
+                            const start = offset < 100 ? field.start : (pageStart + field.start);
+                            const end = offset < 100 ? field.end : (pageStart + field.end);
+                            
+                            container.querySelectorAll('.hex-byte').forEach(el => {
+                                const elOffset = parseInt(el.dataset.offset);
+                                el.classList.toggle('highlight-group', elOffset >= start && elOffset <= end);
+                            });
+
+                            const firstElement = container.querySelector(`[data-offset="${start}"]`);
                             const rect = firstElement.getBoundingClientRect();
                             tooltip.style.left = `${rect.left}px`;
-                            tooltip.style.top = `${rect.top - 70}px`;
+                            tooltip.style.top = `${rect.top - 80}px`;
                             tooltip.style.display = 'block';
                         }
                     });
