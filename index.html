@@ -486,6 +486,7 @@
                 // Update metadata
                 fileMeta.textContent = `Sample database (${(arrayBuffer.byteLength/1024).toFixed(2)} KB)`;
                 resetButton.classList.remove('hidden');
+                contentArea.classList.remove('hidden');
             } catch (error) {
                 showError(error.message);
             } finally {
