@@ -39,7 +39,7 @@ const commonPageHeader = [
     { start: 7, end: 7, name: "Fragmented Free Bytes", description: "Number of fragmented free bytes" }
 ];
 
-const tableLeafPage = [
+const tableInteriorPage = [
     ...commonPageHeader,
     { start: 8, end: 11, name: "Rightmost Pointer", description: "Right-most child pointer" }
 ];
@@ -222,9 +222,14 @@ function displayHex(bytes) {
                     const pageOffset = offset - pageStart;
                     const pageTypeByte = bytes[pageStart];
                     const pageType = pageTypes[pageTypeByte] || 'Unknown Page Type';
+                    const isLeafPage = [0x0a, 0x0d].includes(pageTypeByte); 
+                    
+                    const cellCount = (bytes[pageStart + 3] << 8) | bytes[pageStart + 4];
+                    const pointerArrayStart = pageStart + (isLeafPage ? 8 : 12) - pageStart;
+                    const pointerArrayEnd = pointerArrayStart + (2 * cellCount) - 1;                    
 
                     // Get appropriate structure
-                    const structure = pageTypeByte === 0x0d ? tableLeafPage : commonPageHeader;
+                    const structure = isLeafPage ? commonPageHeader : tableInteriorPage;
                     field = structure.find(f => pageOffset >= f.start && pageOffset <= f.end);
 
                     if (field) {
@@ -232,6 +237,14 @@ function displayHex(bytes) {
                             <strong>${field.name}</strong><br>
                             Page Bytes: ${field.start === field.end ? field.start : `${field.start}-${field.end}`}<br>
                             ${field.description}`;
+                    } else if (pageOffset >= pointerArrayStart && pageOffset <= pointerArrayEnd) {
+                        const start = pageOffset % 2 === 0 ? pageOffset : pageOffset - 1;
+                        field = { start: start, end: start + 1, description: 'Pointer Array' };
+
+                        const pointerIndex = Math.floor((pageOffset - pointerArrayStart) / 2) + 1;
+                        tooltipText = `<strong>Pointer Array</strong><br>
+                            Pointer ${pointerIndex}/${cellCount}<br>
+                            Bytes: ${field.start}-${field.end}`;
                     }
                 }
 
