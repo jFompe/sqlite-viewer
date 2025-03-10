@@ -60,6 +60,10 @@
             display: none !important;
         }
 
+        .keep-whiteSpace {
+            white-space: pre;
+        }
+
         #content-area {
             display: flex;
             flex-direction: column;
@@ -446,6 +450,8 @@
             const bytesPerRow = 16;
             const totalRows = Math.ceil(bytes.length / bytesPerRow);
 
+            let consecutiveEmptyRows = 0;
+
             for (let row = 0; row < totalRows; row++) {
                 const rowDiv = document.createElement('div');
                 rowDiv.className = 'hex-row';
@@ -529,7 +535,25 @@
 
                     rowDiv.appendChild(byteElement);
                 }
-                container.appendChild(rowDiv);
+
+                // Check if the value of all children with class .hex-byte is equal to 0x00
+                const isEmptyRow = Array.from(rowDiv.children)
+                    .every(child => child.className === 'offset-label' || child.textContent === '00');
+                
+                if (isEmptyRow) {
+                    consecutiveEmptyRows += 1;
+                } else {
+                    consecutiveEmptyRows = 0;
+                }
+
+                if (consecutiveEmptyRows < 2) {
+                    container.appendChild(rowDiv);
+                } else if (consecutiveEmptyRows === 2) {
+                    rowDiv.getElementsByClassName('offset-label')[0].textContent = '   *';
+                    rowDiv.getElementsByClassName('offset-label')[0].classList.add('keep-whiteSpace')
+                    rowDiv.querySelectorAll('.hex-byte').forEach(el => el.style.display = 'none')
+                    container.appendChild(rowDiv);
+                }
             }
         }
 
