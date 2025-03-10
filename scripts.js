@@ -175,6 +175,21 @@ fileInput.addEventListener('change', (e) => {
     if (e.target.files[0]) handleFile(e.target.files[0]);
 });
 
+// Scroll with highlighting
+function scrollToOffset(targetOffset) {
+    const targetElement = document.querySelector(`[data-offset="${targetOffset}"]`);
+    if (!targetElement) return;
+
+    // Scroll to element
+    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Highlight animation
+    targetElement.classList.add('highlight-jump');
+    setTimeout(() => {
+        targetElement.classList.remove('highlight-jump');
+    }, 5000);
+}
+
 function displayHex(bytes) {
     const container = document.getElementById('hex-container');
     container.innerHTML = '';
@@ -245,6 +260,8 @@ function displayHex(bytes) {
                         tooltipText = `<strong>Pointer Array</strong><br>
                             Pointer ${pointerIndex}/${cellCount}<br>
                             Bytes: ${field.start}-${field.end}`;
+
+                        byteElement.style.cursor = 'pointer';
                     }
                 }
 
@@ -279,6 +296,30 @@ function displayHex(bytes) {
                     el.classList.remove('highlight-group');
                 });
                 document.getElementById('tooltip').style.display = 'none';
+            });
+
+            byteElement.addEventListener('click', function(e) {
+                const offset = parseInt(e.target.dataset.offset);
+                
+                if (offset < 100) return;
+
+                const pageStart = Math.floor((offset - 100) / pageSize) * pageSize + 100;
+                
+                // Check if we're in cell pointer array
+                const pageType = bytes[pageStart];
+                const isLeafPage = [0x0a, 0x0d].includes(pageType); 
+                const headerSize = isLeafPage ? 8 : 12;
+                const cellCount = new DataView(bytes.buffer).getUint16(pageStart + 3, false);
+                const cellPointerStart = pageStart + headerSize;
+
+                if (offset >= cellPointerStart && offset < cellPointerStart + (cellCount * 2)) {
+                    // Get the full pointer value
+                    const pointerOffset = cellPointerStart + Math.floor((offset - cellPointerStart)/2)*2;
+                    const pointer = new DataView(bytes.buffer).getUint16(pointerOffset, false);
+                    
+                    // Scroll to cell and highlight
+                    scrollToOffset(pointer);
+                }
             });
 
             rowDiv.appendChild(byteElement);
