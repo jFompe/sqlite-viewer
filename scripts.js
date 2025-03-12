@@ -51,9 +51,13 @@ const hexContainer = document.getElementById('hex-container');
 const dropZone = document.getElementById('drop-zone');
 const loadingOverlay = document.getElementById('loading-overlay');
 const resetButton = document.getElementById('reset-button');
+const toggleButton = document.getElementById('toggle-button');
 const contentArea = document.getElementById('content-area');
 const fileMeta = document.getElementById('file-meta');
 const errorMessage = document.getElementById('error-message');
+
+let showHex = true;
+let currentBytes = null;
 
 // Handle file selection
 function handleFile(file) {
@@ -193,7 +197,8 @@ function scrollToOffset(targetOffset) {
 function displayHex(bytes) {
     const container = document.getElementById('hex-container');
     container.innerHTML = '';
-    
+    currentBytes = bytes;
+
     // Parse page size from header
     const pageSize = (bytes[16] << 8) | bytes[17];
 
@@ -474,7 +479,31 @@ function closeCellViewer() {
     document.getElementById('cell-viewer').classList.add('hidden');
 }
 
-// Add this to your existing script
+// Toggle function
+function toggleView() {
+    showHex = !showHex;
+    const container = document.getElementById('hex-container');
+    container.classList.toggle('ascii-mode');
+    
+    document.querySelectorAll('.hex-byte').forEach(byte => {
+        const offset = parseInt(byte.dataset.offset);
+        const value = currentBytes[offset];
+        
+        if (showHex) {
+            byte.textContent = value.toString(16).padStart(2, '0');
+        } else {
+            if (value >= 32 && value <= 126) {
+                byte.textContent = String.fromCharCode(value);
+            } else {
+                byte.innerHTML = '<span class="non-printable">·</span>';
+            }
+        }
+    });
+    
+    document.getElementById('toggle-view').textContent = 
+        showHex ? 'ASCII View' : 'Hex View';
+}
+
 document.getElementById('load-sample').addEventListener('click', async () => {
     try {
         showLoading();
@@ -493,6 +522,7 @@ document.getElementById('load-sample').addEventListener('click', async () => {
         // Update metadata
         fileMeta.textContent = `Sample database (${(arrayBuffer.byteLength/1024).toFixed(2)} KB)`;
         resetButton.classList.remove('hidden');
+        toggleButton.classList.remove('hidden');
         contentArea.classList.remove('hidden');
     } catch (error) {
         showError(error.message);

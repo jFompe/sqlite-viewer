@@ -258,3 +258,29 @@ body {
     color: #3a7fb6;
     font-weight: bold;
 }
+
+#toggle-button {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background-color: #3a7fb6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#toggle-button:hover {
+    background-color: #264f78;
+}
+
+.ascii-mode .hex-byte {
+    font-family: monospace;
+    letter-spacing: normal;
+    min-width: auto;
+}
+
+.non-printable {
+    color: #666;
+}
