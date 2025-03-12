@@ -212,6 +212,8 @@ function displayHex(bytes) {
         offsetLabel.textContent = offset.toString(16).padStart(4, '0').toUpperCase();
         rowDiv.appendChild(offsetLabel);
 
+        const currentPage = Math.floor(offset / pageSize);
+
         // Add bytes for this row
         for (let col = 0; col < bytesPerRow; col++) {
             const byteIndex = offset + col;
@@ -221,7 +223,7 @@ function displayHex(bytes) {
             byteElement.className = 'hex-byte';
             byteElement.textContent = bytes[byteIndex].toString(16).padStart(2, '0');
             byteElement.dataset.offset = byteIndex;
-            
+
             // Add group highlighting on mouseover
             byteElement.addEventListener('mouseover', function(e) {
                 const offset = parseInt(e.target.dataset.offset);
@@ -233,7 +235,7 @@ function displayHex(bytes) {
                     field = headerStructure.find(f => offset >= f.start && offset <= f.end);
                 } else {
                     // Page fields
-                    pageStart = Math.floor((offset - 100) / pageSize) * pageSize + 100;
+                    pageStart = currentPage * pageSize + (currentPage === 0 ? 100 : 0);
                     const pageOffset = offset - pageStart;
                     const pageTypeByte = bytes[pageStart];
                     const pageType = pageTypes[pageTypeByte] || 'Unknown Page Type';
@@ -303,7 +305,7 @@ function displayHex(bytes) {
                 
                 if (offset < 100) return;
 
-                const pageStart = Math.floor((offset - 100) / pageSize) * pageSize + 100;
+                const pageStart = currentPage * pageSize + (currentPage === 0 ? 100 : 0);
                 
                 // Check if we're in cell pointer array
                 const pageType = bytes[pageStart];
@@ -315,10 +317,13 @@ function displayHex(bytes) {
                 if (offset >= cellPointerStart && offset < cellPointerStart + (cellCount * 2)) {
                     // Get the full pointer value
                     const pointerOffset = cellPointerStart + Math.floor((offset - cellPointerStart)/2)*2;
-                    const pointer = new DataView(bytes.buffer).getUint16(pointerOffset, false);
-                    
+                    const pointer1 = new DataView(bytes.buffer).getUint16(pointerOffset, false);
+                    const pointer = pointer1 + currentPage * pageSize; 
+
                     // Scroll to cell and highlight
                     scrollToOffset(pointer);
+                    const cellInfo = parseCell(pageType, bytes, pointer);
+                    showCellViewer(cellInfo, pointer);
                 }
             });
 
@@ -344,6 +349,129 @@ function displayHex(bytes) {
             container.appendChild(rowDiv);
         }
     }
+}
+
+function parseVarint(bytes, offset) {
+    let result = 0;
+    let shift = 0;
+    let bytesRead = 0;
+    
+    while (true) {
+        result |= (bytes[offset] & 0x7f) << shift;
+        bytesRead++;
+        if ((bytes[offset++] & 0x80) === 0) break;
+        shift += 7;
+    }
+    
+    return { value: result, bytesRead };
+}
+
+function parseRecordHeader(bytes, offset, headerSize) {
+    let analysis = [];
+    let currentOffset = offset;
+    const endOffset = offset + headerSize;
+    
+    while (currentOffset < endOffset) {
+        const typeInfo = parseVarint(bytes, currentOffset);
+        currentOffset += typeInfo.bytesRead;
+        
+        const typeCode = typeInfo.value;
+        analysis.push(decodeType(typeCode));
+    }
+    
+    return analysis.join('\n');
+}
+
+function decodeType(code) {
+    // SQLite serial type decoding
+    if (code === 0) return 'NULL';
+    if (code === 1) return 'INTEGER (1 byte)';
+    if (code === 2) return 'INTEGER (2 bytes)';
+    if (code === 3) return 'INTEGER (3 bytes)';
+    if (code === 4) return 'INTEGER (4 bytes)';
+    if (code === 5) return 'INTEGER (6 bytes)';
+    if (code === 6) return 'INTEGER (8 bytes)';
+    if (code === 7) return 'FLOAT (8-byte IEEE)';
+    if (code === 8) return 'INTEGER 0';
+    if (code === 9) return 'INTEGER 1';
+    if (code > 12 && code % 2 === 0) return `TEXT (${(code-12)/2} chars)`;
+    if (code > 13 && code % 2 === 1) return `BLOB (${(code-13)/2} bytes)`;
+    return `UNKNOWN TYPE (0x${code.toString(16)})`;
+}
+
+function parseCell(pageType, bytes, offset) {
+    let result = { type: pageTypes[pageType], fields: [] };
+    
+    switch(pageType) {
+        case 0x0d: // Table Leaf
+            // Parse payload size (varint)
+            let payloadSize = 0;
+            let shift = 0;
+            do {
+                payloadSize |= (bytes[offset] & 0x7f) << shift;
+                shift += 7;
+            } while (bytes[offset++] & 0x80);
+            
+            // Parse RowID (varint)
+            let rowId = 0;
+            shift = 0;
+            do {
+                rowId |= (bytes[offset] & 0x7f) << shift;
+                shift += 7;
+            } while (bytes[offset++] & 0x80);
+            
+            result.fields.push(
+                { name: "Payload Size", value: payloadSize, type: "varint" },
+                { name: "Row ID", value: rowId, type: "varint" },
+                { name: "Payload Start", value: offset, type: "offset" }
+            );
+            
+            // Parse record header
+            const headerSize = parseVarint(bytes, offset);
+            offset += headerSize.bytesRead;
+            
+            result.fields.push({
+                name: "Record Header",
+                value: `Columns: ${headerSize.value} bytes`,
+                details: parseRecordHeader(bytes, offset, headerSize.value)
+            });
+            
+            break;
+            
+        // Add cases for other page types
+    }
+    return result;
+}
+
+function showCellViewer(cellInfo, offset) {
+    const viewer = document.getElementById('cell-viewer');
+    viewer.classList.remove('hidden');
+    
+    let html = `
+        <div class="cell-field">
+            <div class="data-type">${cellInfo.type} Cell</div>
+            Offset: 0x${offset.toString(16)}
+        </div>
+    `;
+    
+    cellInfo.fields.forEach(field => {
+        html += `
+            <div class="cell-field">
+                <div class="field-header">
+                    <span class="data-type">${field.name}</span>
+                    ${field.type ? `<span class="type-info">${field.type}</span>` : ''}
+                </div>
+                <div class="field-value">${field.value}</div>
+                ${field.details ? `<pre class="field-details">${field.details}</pre>` : ''}
+            </div>
+        `;
+    });
+    
+    document.getElementById('cell-content').innerHTML = html;
+}
+
+function closeCellViewer() {
+    document.getElementById('cell-viewer').classList.add('hidden');
 }
 
 // Add this to your existing script
